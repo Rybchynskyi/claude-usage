@@ -49,11 +49,36 @@ password prompt) and, if a previous run ended abnormally, picks the state back
 up on the next launch so you can switch it off. To check by hand:
 `pmset -g | grep SleepDisabled`.
 
-## Build and install
+## Install
+
+### The ready-made app
+
+1. Download **[ClaudeUsage.zip](https://github.com/Rybchynskyi/claude-usage/raw/main/dist/ClaudeUsage.zip)**
+   (about 1 MB, Apple Silicon).
+2. Unzip it and drag `ClaudeUsage.app` into your **Applications** folder.
+3. The app is signed ad-hoc, not notarized by Apple, so macOS refuses to open it
+   straight after a download. Clear the download flag once:
+
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/ClaudeUsage.app
+   ```
+
+   Then open it as usual. Without Terminal: try to open it, get refused, then
+   allow it under System Settings → Privacy & Security → *Open Anyway*.
+4. The Claude mark and a percentage appear next to the clock. There is no window
+   and no Dock icon — everything lives in that menu.
+5. Optional: turn on **“Запускати при вході”** in the menu so it comes back after
+   a restart.
+
+No separate sign-in is needed: the app reads the token Claude Code already keeps
+in your keychain, so it only works on a Mac where you use Claude Code.
+
+### From source
 
 ```sh
 ./build.sh --install     # build, copy into /Applications and launch
 ./build.sh               # build into ./build only
+./build.sh --zip         # package dist/ClaudeUsage.zip for distribution
 ```
 
 Only the Command Line Tools (`swiftc`) are needed — there is no Xcode project.
@@ -89,13 +114,35 @@ renders of `UsagePanelView`.
 
 ## Uninstalling
 
-```sh
-pkill -x ClaudeUsage
-rm -rf /Applications/ClaudeUsage.app
-```
+1. If launch at login is on, switch it off in the menu first — otherwise a dead
+   login item stays behind (System Settings → General → Login Items can also
+   remove it).
+2. Quit the app from its menu (**“Вийти”**). Quitting this way also restores
+   normal sleep if the keep-awake switch was on.
+3. Drag `ClaudeUsage.app` from **Applications** to the Trash, or:
 
-If launch at login was enabled, turn it off in the menu first (or in
-System Settings → General → Login Items).
+   ```sh
+   pkill -x ClaudeUsage
+   rm -rf /Applications/ClaudeUsage.app
+   ```
+
+4. Optional, to drop the few saved settings:
+
+   ```sh
+   defaults delete com.rybchynskyi.claudeusage
+   ```
+
+Nothing else is left on the machine: the app stores no credentials of its own
+and never writes a copy of your token anywhere.
+
+One thing worth checking if the app was ever force-quit while “Також із закритою
+кришкою” was active — that mode changes a system setting, and a kill signal
+leaves no chance to undo it:
+
+```sh
+pmset -g | grep SleepDisabled          # nothing printed means sleep is normal
+sudo pmset -a disablesleep 0           # only if it shows 1
+```
 
 ## Layout
 

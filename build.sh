@@ -53,6 +53,14 @@ printf 'APPL????' > "$BUNDLE/Contents/PkgInfo"
 codesign --force --sign - --identifier "$BUNDLE_ID" "$BUNDLE" >/dev/null
 echo "built $BUNDLE"
 
+if [[ "${1:-}" == "--zip" ]]; then
+  # ditto, not zip: it keeps the bundle's symlinks and metadata intact.
+  mkdir -p dist
+  rm -f "dist/$APP_NAME.zip"
+  ditto -c -k --sequesterRsrc --keepParent "$BUNDLE" "dist/$APP_NAME.zip"
+  echo "packaged dist/$APP_NAME.zip"
+fi
+
 if [[ "${1:-}" == "--install" ]]; then
   DEST="/Applications/$APP_NAME.app"
   if [[ ! -w /Applications ]]; then DEST="$HOME/Applications/$APP_NAME.app"; mkdir -p "$HOME/Applications"; fi
