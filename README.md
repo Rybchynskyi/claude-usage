@@ -53,7 +53,8 @@ up on the next launch so you can switch it off. To check by hand:
 
 ### The ready-made app
 
-1. Download **[ClaudeUsage.zip](https://github.com/Rybchynskyi/claude-usage/raw/main/dist/ClaudeUsage.zip)**
+1. Download **[ClaudeUsage.zip](https://github.com/Rybchynskyi/claude-usage/releases/latest/download/ClaudeUsage.zip)**
+   from the [latest release](https://github.com/Rybchynskyi/claude-usage/releases/latest)
    (about 1 MB, Apple Silicon).
 2. Unzip it and drag `ClaudeUsage.app` into your **Applications** folder.
 3. The app is signed ad-hoc, not notarized by Apple, so macOS refuses to open it
@@ -78,7 +79,7 @@ in your keychain, so it only works on a Mac where you use Claude Code.
 ```sh
 ./build.sh --install     # build, copy into /Applications and launch
 ./build.sh               # build into ./build only
-./build.sh --zip         # package dist/ClaudeUsage.zip for distribution
+./build.sh --zip         # package dist/ClaudeUsage.zip for a release
 ```
 
 Only the Command Line Tools (`swiftc`) are needed — there is no Xcode project.
