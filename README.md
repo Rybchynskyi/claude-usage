@@ -5,6 +5,22 @@
 
 ![панель](docs/panel-light.png)
 
+## Why this exists
+
+> As a developer, I got tired of keeping an eye on my credits in a browser tab.
+> I couldn't find an alternative anywhere, so I built my own app — one that not
+> only shows how many credits I have left unused, but also lets me turn on
+> **amphetamine mode**, where my MacBook never falls asleep, not even with the
+> lid closed.
+
+So the app does two jobs, and both live in the same menu:
+
+| | |
+| --- | --- |
+| **Credits at a glance** | The percentage left sits right next to the clock, colour-coded, and the dropdown breaks it down by window — 5-hour session, weekly, per-model — with the exact time each one resets. |
+| **Amphetamine mode** | One switch, with a timer, that keeps the Mac awake — including with the lid shut, which a normal power assertion cannot do on its own. |
+
+
 У меню-барі — значок Claude і відсоток, що залишився від найбільш обмежувального
 вікна, напр. `✳ 96%`. Значок і число стають оранжевими на ≤20% і червоними на ≤5%.
 У спадному меню — всі вікна зі шкалами й великим відсотком залишку, час скидання,
