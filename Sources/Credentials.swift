@@ -69,6 +69,17 @@ enum Credentials {
             throw CredentialsError.noRefreshToken
         }
 
+        // The server rotates refresh tokens, so only one holder wins a refresh.
+        // Look once more right before spending ours: if Claude Code has just
+        // refreshed, its token is the live one and ours would be dead anyway.
+        if !forceRefresh, let latest = try? read(),
+           let current = latest["claudeAiOauth"] as? [String: Any],
+           let currentToken = current["accessToken"] as? String, !currentToken.isEmpty,
+           ((current["expiresAt"] as? Double) ?? 0) > oneMinuteFromNow {
+            subscriptionType = current["subscriptionType"] as? String
+            return currentToken
+        }
+
         let fresh = try exchange(refreshToken: refreshToken, scopes: oauth["scopes"] as? [String])
         oauth["accessToken"] = fresh.accessToken
         oauth["refreshToken"] = fresh.refreshToken ?? refreshToken
@@ -77,9 +88,10 @@ enum Credentials {
             oauth["refreshTokenExpiresAt"] = refreshExpiry
         }
         stored["claudeAiOauth"] = oauth
-        // A failed write only costs us one extra refresh next time around, so it is
-        // never worth failing the whole fetch over.
-        try? write(stored)
+        // The old refresh token is spent by now, so Claude Code needs this write
+        // to land or it will have to ask for a login. Worth one retry; beyond
+        // that, failing the fetch would not help anyone.
+        do { try write(stored) } catch { try? write(stored) }
         return fresh.accessToken
     }
 
@@ -102,6 +114,12 @@ enum Credentials {
             throw CredentialsError.malformed   // never overwrite a good item with junk
         }
         // -X takes the secret as hex, which keeps it out of shell quoting entirely.
+        //
+        // It does mean the blob passes through this child process's argv, where
+        // another process running as the same user could read it — but that same
+        // user can simply read the keychain item directly, so nothing widens.
+        // Do NOT "fix" this by feeding the secret to `-w` over stdin: that path
+        // silently truncates at 128 characters and would corrupt the item.
         let hex = data.map { String(format: "%02X", $0) }.joined()
         _ = try security(["add-generic-password", "-U", "-a", account, "-s", service, "-X", hex])
     }
@@ -168,10 +186,21 @@ enum Credentials {
 
 /// Minimal blocking HTTP, for use off the main thread.
 enum HTTP {
+    /// A private session: nothing from these calls is written to the shared
+    /// on-disk URL cache or cookie jar.
+    private static let session: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        return URLSession(configuration: configuration)
+    }()
+
     static func send(_ request: URLRequest) throws -> (Data, Int) {
         var result: Result<(Data, Int), Error>!
         let done = DispatchSemaphore(value: 0)
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        session.dataTask(with: request) { data, response, error in
             if let error {
                 result = .failure(error)
             } else {

@@ -49,8 +49,10 @@ PLIST
 printf 'APPL????' > "$BUNDLE/Contents/PkgInfo"
 
 # Ad-hoc signature: keeps the bundle's identity stable so macOS and the keychain
-# treat it as the same app across launches.
-codesign --force --sign - --identifier "$BUNDLE_ID" "$BUNDLE" >/dev/null
+# treat it as the same app across launches. --options runtime turns on the
+# hardened runtime, which blocks DYLD_INSERT_LIBRARIES injection into a process
+# that can hold a cached administrator authorisation.
+codesign --force --sign - --options runtime --identifier "$BUNDLE_ID" "$BUNDLE" >/dev/null
 echo "built $BUNDLE"
 
 if [[ "${1:-}" == "--zip" ]]; then
