@@ -18,7 +18,7 @@ cd "$(dirname "$0")"
 APP_NAME="ClaudeUsage"
 BUNDLE="build/$APP_NAME.app"
 BUNDLE_ID="com.rybchynskyi.claudeusage"
-VERSION="1.3"
+VERSION="1.2"
 NOTARY_PROFILE="${CLAUDE_USAGE_NOTARY_PROFILE:-keyflip}"
 
 DO_INSTALL=0
