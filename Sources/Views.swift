@@ -75,10 +75,10 @@ final class UsagePanelView: NSView {
         let trailing: String
     }
 
-    private let badge: String?
-    private let rows: [Row]
-    private let footer: Footer?
-    private let message: String?
+    private var badge: String?
+    private var rows: [Row]
+    private var footer: Footer?
+    private var message: String?
 
     // Layout constants, shared by `height(…)` and `draw(_:)`.
     private static let width: CGFloat = 304
@@ -103,6 +103,23 @@ final class UsagePanelView: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    /// Swaps the content without replacing the view. A menu is a live object: a
+    /// fetch that finishes while the menu is open used to rebuild every item,
+    /// and a click then landed on an item that no longer existed. Now the panel
+    /// keeps its identity for the whole life of the app and only redraws.
+    func update(badge: String?, rows: [Row], footer: Footer?, message: String? = nil) {
+        self.badge = badge
+        self.rows = rows
+        self.footer = footer
+        self.message = message
+        let height = Self.height(rows: rows.count, hasFooter: footer != nil,
+                                 hasMessage: message != nil)
+        if abs(frame.height - height) > 0.5 {
+            setFrameSize(NSSize(width: Self.width, height: height))
+        }
+        needsDisplay = true
+    }
 
     override var isFlipped: Bool { true }
 
@@ -241,8 +258,8 @@ final class UsagePanelView: NSView {
 
 /// A compact two-column row, used for the weekly breakdown submenu.
 final class InfoRowView: NSView {
-    private let title: String
-    private let trailing: String
+    private var title: String
+    private var trailing: String
     private let secondary: Bool
 
     init(title: String, trailing: String, secondary: Bool = false, width: CGFloat = 230) {
@@ -253,6 +270,13 @@ final class InfoRowView: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
+
+    /// In place, for the same reason as `UsagePanelView.update`.
+    func update(title: String, trailing: String) {
+        self.title = title
+        self.trailing = trailing
+        needsDisplay = true
+    }
 
     override var isFlipped: Bool { true }
 

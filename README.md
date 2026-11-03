@@ -41,12 +41,42 @@ Two different mechanisms are at work:
 * **sleep with the lid closed** cannot be stopped by an assertion at all. The
   only thing that works is the system setting `pmset -a disablesleep 1`, which
   requires an administrator. That is why the **“Також із закритою кришкою”**
-  (“Also with the lid closed”) sub-item brings up the standard macOS password dialog when you turn it on.
-  Cancel it and the guard still works, just only while the lid is open.
+  (“Also with the lid closed”) sub-item brings up the standard macOS password
+  dialog when you turn it on. Cancel it and the guard still works, just only
+  while the lid is open.
+
+Ticking that box is enough on its own: if the keep-awake switch is off, turning
+the box on turns the switch on too, open-ended — the setting means nothing
+without it, and the point of the tick is to watch the Mac stay awake, not to arm
+a preference for later. One click, one password prompt, and the submenu says
+what actually happened.
+
+It says it because the app checks rather than assumes. A password dialog that
+closed is no proof the setting took, so after every change `pmset -g` is read
+back, and the submenu only claims **“діє і з закритою кришкою”** when the system
+agrees. Cancel the prompt and it says so, with **“Спробувати ще раз”** next to
+it instead of leaving you to toggle the box off and on again.
+
+Both halves of that used to need a second go, for two separate reasons, and
+both are fixed:
+
+* **the menu was rebuilt under the cursor.** Opening the menu starts a fetch,
+  and when the fetch came back — half a second later, while you were reading
+  down the submenu — every item was thrown away and recreated. The click then
+  landed on an item that no longer existed and did nothing. The menu is now
+  built once and only ever updated in place; anything that would change its
+  shape waits until it closes, so nothing moves while you aim at it.
+* **the password dialog went up too early.** It was raised from inside the
+  menu's own click handler, with the menu still being tracked, so it could
+  appear behind another window. The request now waits for the menu to be gone,
+  and the app asks for the foreground first.
 
 `disablesleep` outlives the process, so the app clears it on quit (with the same
 password prompt) and, if a previous run ended abnormally, picks the state back
-up on the next launch so you can switch it off. To check by hand:
+up on the next launch so you can switch it off. If clearing it is ever refused —
+you cancel the prompt when switching the guard off — the Mac really still cannot
+sleep, and the menu keeps a line at the top saying so until you deal with it,
+rather than quietly claiming all is normal. To check by hand:
 `pmset -g | grep SleepDisabled`.
 
 ## Install
@@ -57,15 +87,15 @@ up on the next launch so you can switch it off. To check by hand:
    from the [latest release](https://github.com/Rybchynskyi/claude-usage/releases/latest)
    (about 1 MB, Apple Silicon).
 2. Unzip it and drag `ClaudeUsage.app` into your **Applications** folder.
-3. The app is signed ad-hoc, not notarized by Apple, so macOS refuses to open it
-   straight after a download. Clear the download flag once:
+3. Double-click it. The app is signed with a Developer ID certificate and
+   notarized by Apple, with the ticket stapled into the bundle, so there is no
+   Gatekeeper warning and nothing to clear in Terminal — it also works offline
+   on first launch. To see for yourself:
 
    ```sh
-   xattr -dr com.apple.quarantine /Applications/ClaudeUsage.app
+   spctl -a -vvv -t install /Applications/ClaudeUsage.app
+   # accepted · source=Notarized Developer ID
    ```
-
-   Then open it as usual. Without Terminal: try to open it, get refused, then
-   allow it under System Settings → Privacy & Security → *Open Anyway*.
 4. The Claude mark and a percentage appear next to the clock. There is no window
    and no Dock icon — everything lives in that menu.
 5. Optional: turn on **“Запускати при вході”** in the menu so it comes back after
@@ -79,11 +109,31 @@ in your keychain, so it only works on a Mac where you use Claude Code.
 ```sh
 ./build.sh --install     # build, copy into /Applications and launch
 ./build.sh               # build into ./build only
-./build.sh --zip         # package dist/ClaudeUsage.zip for a release
+./build.sh --notarize --zip   # sign, notarize, staple, package for a release
 ```
 
 Only the Command Line Tools (`swiftc`) are needed — there is no Xcode project.
 Minimum version is macOS 13.
+
+The signature picks itself: with a **Developer ID Application** certificate in
+the keychain the build is signed with it and timestamped, and without one it
+falls back to ad-hoc so the build still works on any machine. Either way the
+hardened runtime is on — not a formality here, since without it any process of
+the same user could inject a library into an app that holds a cached
+administrator authorisation. Overrides:
+
+| Variable | Default |
+| --- | --- |
+| `CLAUDE_USAGE_SIGN_IDENTITY` | the first `Developer ID Application` in the keychain |
+| `CLAUDE_USAGE_NOTARY_PROFILE` | `keyflip` — a notarytool keychain profile |
+
+`--notarize` needs those credentials stored once; they belong to the Apple
+account, not to one app, so an existing profile is reused:
+
+```sh
+xcrun notarytool store-credentials      # asks for a profile name, Apple ID,
+                                        # team ID and an app-specific password
+```
 
 Launch at login is a toggle inside the menu (“Запускати при вході”).
 
@@ -157,4 +207,4 @@ sudo pmset -a disablesleep 0           # only if it shows 1
 | `Sources/StatusBarController.swift` | the menu bar item and the dropdown |
 | `Sources/main.swift` | entry point, `--once` mode |
 | `Tools/MakeIcon.swift` | generates the app icon at build time |
-| `build.sh` | builds the `.app`, ad-hoc signs it, installs it |
+| `build.sh` | builds the `.app`, signs and notarizes it, installs it |
