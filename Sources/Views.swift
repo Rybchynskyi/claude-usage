@@ -282,16 +282,28 @@ final class InfoRowView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         let content = bounds.insetBy(dx: 16, dy: 0)
-        NSAttributedString(string: title, attributes: [
-            .font: NSFont.systemFont(ofSize: secondary ? 10.5 : 12),
-            .foregroundColor: secondary ? Brand.inkSubtle : NSColor.labelColor,
-        ]).draw(at: NSPoint(x: content.minX, y: secondary ? 3 : 4))
 
         let value = NSAttributedString(string: trailing, attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .semibold),
             .foregroundColor: Brand.dynamic(light: NSColor(hex: 0xB05B38),
                                             dark: NSColor(hex: 0xE2957A)),
         ])
-        value.draw(at: NSPoint(x: content.maxX - value.size().width, y: 3))
+        let valueWidth = value.size().width
+        if valueWidth > 0 { value.draw(at: NSPoint(x: content.maxX - valueWidth, y: 3)) }
+
+        // Bounded and truncating, not drawn free: a source name chosen by the
+        // API, or a status line that reads longer in one language than the
+        // other, ends in an ellipsis instead of sliding under the number.
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        let top: CGFloat = secondary ? 3 : 4
+        let available = content.width - (valueWidth > 0 ? valueWidth + 8 : 0)
+        NSAttributedString(string: title, attributes: [
+            .font: NSFont.systemFont(ofSize: secondary ? 10.5 : 12),
+            .foregroundColor: secondary ? Brand.inkSubtle : NSColor.labelColor,
+            .paragraphStyle: paragraph,
+        ]).draw(with: NSRect(x: content.minX, y: top,
+                             width: max(0, available), height: bounds.height - top),
+                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
     }
 }

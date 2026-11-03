@@ -13,7 +13,7 @@ if CommandLine.arguments.contains("--once") {
                                            withPad: " ", startingAt: 0)
             let used = String(format: "%5.1f", window.percentUsed)
             let left = String(format: "%5.1f", window.percentLeft)
-            print("\(name)  використано \(used)%  залишилось \(left)%  скидання \(reset)")
+            print("\(name)  \(S.cliUsed) \(used)%  \(S.cliLeft) \(left)%  \(S.cliReset) \(reset)")
         }
         if let spend = snapshot.spend {
             print("extra credits: \(spend.used) / \(spend.limit)  enabled=\(spend.enabled)")

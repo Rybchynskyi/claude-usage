@@ -22,14 +22,10 @@ import IOKit.pwr_mgt
 /// took: `pmset -g` is read back, and the guard only ever claims the lid is
 /// covered when the system agrees.
 final class SleepGuard {
-    static let durations: [(title: String, seconds: TimeInterval?)] = [
-        ("15 хвилин", 15 * 60),
-        ("30 хвилин", 30 * 60),
-        ("1 година", 60 * 60),
-        ("2 години", 2 * 60 * 60),
-        ("4 години", 4 * 60 * 60),
-        ("Поки не вимкну", nil),
-    ]
+    /// The offered durations. Titles come from `Strings.durations` in the same
+    /// order, so the list renames itself when the language changes.
+    static let durations: [TimeInterval?] = [15 * 60, 30 * 60, 60 * 60,
+                                            2 * 60 * 60, 4 * 60 * 60, nil]
 
     /// What the lid-closed half of the guard is currently doing.
     enum LidState {
@@ -78,11 +74,11 @@ final class SleepGuard {
 
     var remainingDescription: String {
         guard isActive else { return "" }
-        guard let expiresAt else { return "без обмеження часу" }
+        guard let expiresAt else { return S.noTimeLimit }
         let remaining = max(0, Int(expiresAt.timeIntervalSinceNow.rounded()))
         let hours = remaining / 3600, minutes = (remaining % 3600 + 59) / 60
-        if hours > 0 { return "ще \(hours) год \(minutes) хв" }
-        return "ще \(max(1, minutes)) хв"
+        if hours > 0 { return S.remainingHoursMinutes(hours, minutes) }
+        return S.remainingMinutes(max(1, minutes))
     }
 
     // MARK: - Switching on and off
@@ -100,7 +96,7 @@ final class SleepGuard {
             expiresAt = nil
             chosenDuration = nil
             onChange?()
-            onProblem?("Система не дозволила заборонити сон.")
+            onProblem?(S.assertionFailed)
             return
         }
         isActive = true
@@ -243,22 +239,20 @@ final class SleepGuard {
             let cancelled = code == -128      // the user dismissed the dialog
             let detail = error[NSAppleScript.errorBriefMessage] as? String
                 ?? error[NSAppleScript.errorMessage] as? String
-                ?? "помилка \(code)"
+                ?? S.errorCode(code)
             return .failure(Problem(
-                message: cancelled
-                    ? "Пароль не введено, тому режим із закритою кришкою не змінено."
-                    : "Не вдалося змінити системний параметр сну: \(detail)",
-                shortMessage: cancelled ? "пароль не введено" : detail,
+                message: cancelled ? S.passwordNotEntered : S.pmsetFailed(detail),
+                shortMessage: cancelled ? S.shortPasswordNotEntered : detail,
                 cancelled: cancelled))
         }
 
         guard let actual = systemSleepDisabled() else {
-            return .failure(Problem(message: "Не вдалося перевірити стан pmset.",
-                                    shortMessage: "стан невідомий", cancelled: false))
+            return .failure(Problem(message: S.pmsetUnverified,
+                                    shortMessage: S.shortStateUnknown, cancelled: false))
         }
         guard actual == disabled else {
-            return .failure(Problem(message: "Система не прийняла pmset disablesleep.",
-                                    shortMessage: "система відмовила", cancelled: false))
+            return .failure(Problem(message: S.pmsetRefused,
+                                    shortMessage: S.shortSystemRefused, cancelled: false))
         }
         return .success(())
     }

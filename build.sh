@@ -18,7 +18,7 @@ cd "$(dirname "$0")"
 APP_NAME="ClaudeUsage"
 BUNDLE="build/$APP_NAME.app"
 BUNDLE_ID="com.rybchynskyi.claudeusage"
-VERSION="1.2"
+VERSION="1.3"
 NOTARY_PROFILE="${CLAUDE_USAGE_NOTARY_PROFILE:-keyflip}"
 
 DO_INSTALL=0
@@ -66,12 +66,13 @@ swiftc -O -swift-version 5 \
   -target arm64-apple-macos13 \
   -framework AppKit -framework ServiceManagement -framework IOKit \
   -o "$BUNDLE/Contents/MacOS/$APP_NAME" \
-  Sources/Credentials.swift Sources/UsageAPI.swift Sources/Brand.swift Sources/Views.swift Sources/SleepGuard.swift Sources/StatusBarController.swift Sources/main.swift
+  Sources/Strings.swift Sources/Credentials.swift Sources/UsageAPI.swift Sources/Brand.swift Sources/Views.swift Sources/SleepGuard.swift Sources/StatusBarController.swift Sources/main.swift
 
 # The icon is generated rather than checked in, so the repo stays binary-free.
 if [[ ! -f build/AppIcon.icns ]]; then
   swiftc -O -swift-version 5 -framework AppKit \
-    Sources/Brand.swift Sources/Views.swift Tools/MakeIcon.swift -o build/makeicon
+    Sources/Strings.swift Sources/Brand.swift Sources/Views.swift Tools/MakeIcon.swift \
+    -o build/makeicon
   ./build/makeicon build/AppIcon.iconset
   iconutil -c icns build/AppIcon.iconset -o build/AppIcon.icns
 fi

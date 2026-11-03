@@ -30,11 +30,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     // MARK: Menu furniture, created once
 
     private let panelView = UsagePanelView(badge: nil, rows: [], footer: nil,
-                                           message: "Завантаження…")
+                                           message: S.loading)
     private let panelItem = NSMenuItem()
 
-    private let breakdownItem = NSMenuItem(title: "Тиждень за джерелами",
-                                           action: nil, keyEquivalent: "")
+    private let breakdownItem = NSMenuItem()
     private let breakdownSeparator = NSMenuItem.separator()
     /// A fixed pool: the API decides how many sources there are, and growing or
     /// shrinking a live menu is exactly what we are avoiding.
@@ -46,51 +45,54 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             return (item, view)
         }
 
-    private let sleepItem = NSMenuItem(title: "Не засинати", action: nil, keyEquivalent: "")
+    private let sleepItem = NSMenuItem()
     private let sleepSubmenu = NSMenu()
-    private let stopItem = NSMenuItem(title: "Вимкнути", action: nil, keyEquivalent: "")
-    private let lidStatusView = InfoRowView(title: "", trailing: "", secondary: true)
+    private let stopItem = NSMenuItem()
+    private let lidStatusView = InfoRowView(title: "", trailing: "", secondary: true,
+                                            width: 300)
     private let lidStatusItem = NSMenuItem()
-    private let lidRetryItem = NSMenuItem(title: "Спробувати ще раз (пароль)",
-                                          action: nil, keyEquivalent: "")
+    private let lidRetryItem = NSMenuItem()
     private let sleepTopSeparator = NSMenuItem.separator()
-    private let durationItems: [NSMenuItem] = SleepGuard.durations.map {
-        let item = NSMenuItem(title: $0.title, action: nil, keyEquivalent: "")
-        item.representedObject = $0.seconds as Any?
+    private let durationItems: [NSMenuItem] = SleepGuard.durations.map { seconds in
+        let item = NSMenuItem()
+        item.representedObject = seconds as Any?
         return item
     }
     private let lidSeparator = NSMenuItem.separator()
-    private let lidItem = NSMenuItem(title: "Також із закритою кришкою",
-                                     action: nil, keyEquivalent: "")
-    private let lidHintView = InfoRowView(title: "потрібен пароль адміністратора",
-                                          trailing: "", secondary: true)
+    private let lidItem = NSMenuItem()
+    private let lidHintView = InfoRowView(title: "", trailing: "", secondary: true,
+                                          width: 300)
     private let lidHintItem = NSMenuItem()
 
     /// Only ever visible in the one case that used to be silently wrong: the
     /// guard is off, but clearing `pmset disablesleep` was refused, so the Mac
     /// still cannot sleep.
-    private let systemHoldItem = NSMenuItem(title: "Сон і далі заборонено системно — зняти",
-                                            action: nil, keyEquivalent: "")
+    private let systemHoldItem = NSMenuItem()
 
-    private let refreshItem = NSMenuItem(title: "Оновити", action: nil, keyEquivalent: "r")
-    private let openItem = NSMenuItem(title: "Сторінка використання…",
-                                      action: nil, keyEquivalent: "")
-    private let loginItem = NSMenuItem(title: "Запускати при вході",
-                                       action: nil, keyEquivalent: "")
-    private let quitItem = NSMenuItem(title: "Вийти", action: nil, keyEquivalent: "q")
+    private let refreshItem = NSMenuItem(title: "", action: nil, keyEquivalent: "r")
+    private let openItem = NSMenuItem()
+    private let loginItem = NSMenuItem()
+    private let languageItem = NSMenuItem()
+    private let languageOptions: [(item: NSMenuItem, language: Language)] =
+        Language.allCases.map { (NSMenuItem(), $0) }
+    private let quitItem = NSMenuItem(title: "", action: nil, keyEquivalent: "q")
 
-    private lazy var clock: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
+    // Weekday names follow the interface language, while the clock itself stays
+    // 24-hour in both — so the formatters are rebuilt when the language changes
+    // rather than created once.
+    private let clock = DateFormatter()
+    private let clockWithDay = DateFormatter()
+    private var formattersLanguage: Language?
 
-    private lazy var clockWithDay: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "uk_UA")
-        formatter.setLocalizedDateFormatFromTemplate("EEE HH:mm")
-        return formatter
-    }()
+    private func ensureFormatters() {
+        let language = Localization.resolved
+        guard formattersLanguage != language else { return }
+        formattersLanguage = language
+        clock.locale = Localization.locale
+        clock.dateFormat = "HH:mm"
+        clockWithDay.locale = Localization.locale
+        clockWithDay.dateFormat = "EEE HH:mm"
+    }
 
     override init() {
         super.init()
@@ -103,7 +105,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         sleepGuard.restoreIfStranded()
 
         statusItem.button?.imagePosition = .imageLeading
-        statusItem.button?.toolTip = "Ліміти Claude Code"
         render()
         refresh()
 
@@ -149,7 +150,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         sleepSubmenu.addItem(lidSeparator)
         lidItem.target = self
         lidItem.action = #selector(toggleLidPolicy)
-        lidItem.toolTip = "Потребує пароля адміністратора: змінює системний параметр pmset disablesleep."
         sleepSubmenu.addItem(lidItem)
         lidHintItem.view = lidHintView
         sleepSubmenu.addItem(lidHintItem)
@@ -173,6 +173,16 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         loginItem.target = self
         loginItem.action = #selector(toggleLaunchAtLogin)
         menu.addItem(loginItem)
+
+        let languageMenu = NSMenu()
+        for option in languageOptions {
+            option.item.target = self
+            option.item.action = #selector(chooseLanguage(_:))
+            option.item.representedObject = option.language.rawValue
+            languageMenu.addItem(option.item)
+        }
+        languageItem.submenu = languageMenu
+        menu.addItem(languageItem)
 
         menu.addItem(.separator())
         quitItem.target = self
@@ -242,7 +252,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             button.attributedTitle = NSAttributedString(
                 string: lastError == nil ? " …" : " ⚠",
                 attributes: [.font: font, .foregroundColor: NSColor.secondaryLabelColor])
-            button.toolTip = lastError ?? "Завантаження…"
+            button.toolTip = lastError ?? S.loading
             return
         }
 
@@ -259,36 +269,48 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private func tooltip() -> String {
         var lines: [String] = []
         if let snapshot {
-            lines.append("Claude Code — залишилось:")
+            lines.append(S.remainingHeader)
             lines += snapshot.windows.map { "\($0.name): \(Int($0.percentLeft.rounded()))%" }
         } else {
-            lines.append(lastError ?? "Завантаження…")
+            lines.append(lastError ?? S.loading)
         }
         if sleepGuard.isActive {
-            lines.append("Сон заборонено · \(sleepGuard.remainingDescription)")
-            lines.append(sleepGuard.lidClosedCovered
-                ? "Діє і з закритою кришкою"
-                : "Діє, поки кришка відкрита")
+            lines.append(S.sleepBlocked(sleepGuard.remainingDescription))
+            lines.append(sleepGuard.lidClosedCovered ? S.lidCoveredLine : S.lidOpenOnlyLine)
         } else if sleepGuard.sleepDisabledSystemWide {
-            lines.append("Увага: системна заборона сну досі ввімкнена")
+            lines.append(S.systemHoldWarning)
         }
         return lines.joined(separator: "\n")
     }
 
     // MARK: - Dropdown, updated in place
 
-    /// Text and checkmarks only. Changing these under the cursor is harmless.
+    /// Every piece of text in the menu, plus the checkmarks. All of it lives
+    /// here rather than in `buildMenu` so that switching the interface language
+    /// renames the whole menu in place, with nothing to rebuild and no relaunch.
     private func syncTitles() {
-        sleepItem.title = sleepGuard.isActive
-            ? "Не засинати · \(sleepGuard.remainingDescription)"
-            : "Не засинати"
-        sleepItem.state = sleepGuard.isActive ? .on : .off
+        ensureFormatters()
+        statusItem.button?.toolTip = snapshot == nil && lastError == nil
+            ? S.menuBarTooltip : tooltip()
 
-        for (item, option) in zip(durationItems, SleepGuard.durations) {
-            item.state = sleepGuard.isActive && sleepGuard.chosenDuration == option.seconds
-                ? .on : .off
+        breakdownItem.title = S.weeklyBySource
+
+        sleepItem.title = sleepGuard.isActive
+            ? S.dontSleepActive(sleepGuard.remainingDescription)
+            : S.dontSleep
+        sleepItem.state = sleepGuard.isActive ? .on : .off
+        stopItem.title = S.turnOff
+        lidRetryItem.title = S.retryWithPassword
+        systemHoldItem.title = S.systemHold
+
+        for (index, item) in durationItems.enumerated() {
+            item.title = S.durations[index]
+            item.state = sleepGuard.isActive
+                && sleepGuard.chosenDuration == SleepGuard.durations[index] ? .on : .off
         }
 
+        lidItem.title = S.alsoWithLidClosed
+        lidItem.toolTip = S.lidTooltip
         lidItem.state = sleepGuard.keepAwakeWithLidClosed ? .on : .off
         lidStatusView.update(title: lidStatusText, trailing: "")
         lidHintView.update(title: lidHintText, trailing: "")
@@ -299,27 +321,37 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                             trailing: "\(Int(sources[index].percent.rounded()))%")
         }
 
-        refreshItem.title = snapshot.map { "Оновити · дані за \(clock.string(from: $0.fetchedAt))" }
-            ?? "Оновити"
+        refreshItem.title = snapshot.map { S.refreshWithTime(clock.string(from: $0.fetchedAt)) }
+            ?? S.refresh
+        openItem.title = S.usagePage
+        loginItem.title = S.launchAtLogin
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+
+        languageItem.title = S.language
+        let chosen = Localization.language
+        for option in languageOptions {
+            option.item.title = option.language.menuTitle
+            option.item.state = option.language == chosen ? .on : .off
+        }
+
+        quitItem.title = S.quit
     }
 
     private var lidStatusText: String {
         switch sleepGuard.lidState {
-        case .covered: return "діє і з закритою кришкою"
-        case .waiting: return "запитую пароль…"
-        case .refused(let why): return "лише поки кришка відкрита · \(why)"
+        case .covered: return S.lidCovered
+        case .waiting: return S.lidWaiting
+        case .refused(let why): return S.lidRefused(why)
         case .off:
-            return sleepGuard.keepAwakeWithLidClosed
-                ? "застосовую…" : "діє, поки кришка відкрита"
+            return sleepGuard.keepAwakeWithLidClosed ? S.lidApplying : S.lidOpenOnly
         }
     }
 
     private var lidHintText: String {
         switch sleepGuard.lidState {
-        case .waiting: return "введіть пароль у вікні системи"
-        case .refused: return "натисніть «Спробувати ще раз»"
-        default: return "потрібен пароль адміністратора"
+        case .waiting: return S.lidHintEnterPassword
+        case .refused: return S.lidHintPressRetry
+        default: return S.lidHintNeedsPassword
         }
     }
 
@@ -413,15 +445,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         guard let snapshot else {
             return PanelModel(badge: badge, rows: [], footer: nil,
-                              message: lastError ?? "Завантаження…")
+                              message: lastError ?? S.loading)
         }
 
         let rows = snapshot.windows.map { window -> UsagePanelView.Row in
-            var detail = "використано \(Int(window.percentUsed.rounded()))%"
+            var detail = S.usedPercent(Int(window.percentUsed.rounded()))
             if let resetsAt = window.resetsAt {
                 let soon = resetsAt.timeIntervalSinceNow < 12 * 3600
                 let stamp = soon ? clock.string(from: resetsAt) : clockWithDay.string(from: resetsAt)
-                detail += " · оновиться о \(stamp)"
+                detail += " · " + S.resetsAt(stamp)
             }
             return UsagePanelView.Row(
                 name: window.name,
@@ -434,18 +466,18 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         var footer: UsagePanelView.Footer?
         if let spend = snapshot.spend {
             footer = UsagePanelView.Footer(
-                title: "Додаткові кредити",
+                title: S.extraCredits,
                 detail: spend.enabled
-                    ? "використано \(spend.used) з \(spend.limit)"
-                    : "вимкнено · ліміт \(spend.limit)",
+                    ? S.spendUsed(spend.used, spend.limit)
+                    : S.spendDisabled(spend.limit),
                 trailing: spend.enabled ? "\(Int(spend.percentUsed.rounded()))%" : "—")
         }
 
         return PanelModel(badge: badge, rows: rows, footer: footer, message: nil)
     }
 
-    /// Keeps "ще 42 хв" honest while the guard is running, and costs nothing
-    /// when it is not.
+    /// Keeps the remaining time honest while the guard is running, and costs
+    /// nothing when it is not.
     private func updateTick() {
         let wanted = sleepGuard.isActive && sleepGuard.expiresAt != nil
         if wanted, tickTimer == nil {
@@ -468,6 +500,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func retryLid() { sleepGuard.retryLid() }
 
+    @objc private func chooseLanguage(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let language = Language(rawValue: raw) else { return }
+        Localization.language = language
+        // Nothing to rebuild: every title is read fresh in syncTitles, and the
+        // panel redraws from the same tables.
+        render()
+    }
+
     @objc private func toggleLidPolicy() {
         sleepGuard.setLidPreference(!sleepGuard.keepAwakeWithLidClosed)
     }
@@ -477,7 +518,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private func report(_ message: String) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Заборона сну"
+        alert.messageText = S.sleepAlertTitle
         alert.informativeText = message
         alert.runModal()
     }
@@ -498,7 +539,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         } catch {
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
-            alert.messageText = "Не вдалося змінити автозапуск"
+            alert.messageText = S.launchAtLoginFailed
             alert.informativeText = error.localizedDescription
             alert.runModal()
         }

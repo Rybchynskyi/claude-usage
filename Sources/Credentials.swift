@@ -10,13 +10,13 @@ enum CredentialsError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .keychainUnavailable:
-            return "Не вдалося прочитати вхід Claude Code з keychain. Виконайте `claude` і увійдіть."
+            return S.keychainUnreadable
         case .malformed:
-            return "Збережений вхід Claude Code має неочікуваний формат."
+            return S.keychainMalformed
         case .noRefreshToken:
-            return "Термін дії токена сплив, а refresh-токена немає. Виконайте `claude /login`."
+            return S.tokenExpiredNoRefresh
         case .refreshFailed(let why):
-            return "Не вдалося оновити токен: \(why)"
+            return S.refreshFailed(why)
         }
     }
 }
@@ -170,7 +170,7 @@ enum Credentials {
         }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let access = json["access_token"] as? String, !access.isEmpty else {
-            throw CredentialsError.refreshFailed("неочікувана відповідь")
+            throw CredentialsError.refreshFailed(S.unexpectedResponse)
         }
         let lifetime = (json["expires_in"] as? Double) ?? 3600
         let refreshLifetime = json["refresh_token_expires_in"] as? Double

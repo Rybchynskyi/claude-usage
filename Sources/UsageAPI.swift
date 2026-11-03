@@ -2,10 +2,13 @@ import Foundation
 
 struct LimitWindow {
     let key: String
-    let name: String        // full name, for the dropdown
-    let shortName: String   // compact name, for the menu bar
     let percentUsed: Double
     let resetsAt: Date?
+
+    /// Looked up rather than stored, so switching the interface language
+    /// renames the windows without re-fetching anything.
+    var name: String { S.windowName(key) }          // full, for the dropdown
+    var shortName: String { S.windowShortName(key) } // compact, for the menu bar
 
     var percentLeft: Double { max(0, 100 - percentUsed) }
 }
@@ -49,10 +52,10 @@ enum UsageError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .http(401): return "Вхід відхилено (401). Виконайте `claude /login`."
-        case .http(let code): return "Сервер відповів HTTP \(code)."
-        case .malformed: return "Не вдалося розібрати відповідь сервера."
-        case .empty: return "Для цього акаунта ліміти не повідомляються (можливо, оплата за API)."
+        case .http(401): return S.loginRejected
+        case .http(let code): return S.serverHTTP(code)
+        case .malformed: return S.malformedResponse
+        case .empty: return S.noLimitsReported
         }
     }
 }
@@ -60,14 +63,15 @@ enum UsageError: LocalizedError {
 enum UsageAPI {
     private static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 
-    /// Windows in the order they should be listed, with their display names.
-    private static let known: [(key: String, name: String, short: String)] = [
-        ("five_hour", "Сесія · 5 годин", "5г"),
-        ("seven_day", "Тиждень · усе", "7д"),
-        ("seven_day_opus", "Тиждень · Opus", "Opus"),
-        ("seven_day_sonnet", "Тиждень · Sonnet", "Sonnet"),
-        ("seven_day_oauth_apps", "Тиждень · застосунки", "Apps"),
-        ("seven_day_cowork", "Тиждень · Cowork", "Cowork"),
+    /// Windows in the order they should be listed. The display names live in
+    /// `Strings`, keyed by these same keys.
+    private static let known = [
+        "five_hour",
+        "seven_day",
+        "seven_day_opus",
+        "seven_day_sonnet",
+        "seven_day_oauth_apps",
+        "seven_day_cowork",
     ]
 
     static func fetch() throws -> UsageSnapshot {
@@ -97,13 +101,11 @@ enum UsageAPI {
         }
 
         var windows: [LimitWindow] = []
-        for entry in known {
-            guard let window = json[entry.key] as? [String: Any],
+        for key in known {
+            guard let window = json[key] as? [String: Any],
                   let utilization = window["utilization"] as? Double else { continue }
             windows.append(LimitWindow(
-                key: entry.key,
-                name: entry.name,
-                shortName: entry.short,
+                key: key,
                 percentUsed: utilization,
                 resetsAt: date(window["resets_at"])
             ))

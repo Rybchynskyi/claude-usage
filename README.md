@@ -28,10 +28,10 @@ source (Claude Code / Chats / Cowork / other).
 
 ## Keeping the Mac awake
 
-The app's interface is in Ukrainian. The menu carries a **“Не засинати”**
-(“Don't sleep”) switch with a choice of duration: 15 min,
-30 min, 1 h, 2 h, 4 h, or until you switch it off. While it is on, a dot appears
-next to the menu bar mark and the menu item itself shows the time left.
+The menu carries a **“Не засинати”** / **“Don't sleep”** switch with a choice of
+duration: 15 min, 30 min, 1 h, 2 h, 4 h, or until you switch it off. While it is
+on, a dot appears next to the menu bar mark and the menu item itself shows the
+time left.
 
 Two different mechanisms are at work:
 
@@ -40,8 +40,8 @@ Two different mechanisms are at work:
   `pmset -g assertions` as `Claude Usage: keep awake`;
 * **sleep with the lid closed** cannot be stopped by an assertion at all. The
   only thing that works is the system setting `pmset -a disablesleep 1`, which
-  requires an administrator. That is why the **“Також із закритою кришкою”**
-  (“Also with the lid closed”) sub-item brings up the standard macOS password
+  requires an administrator. That is why the **“Також із закритою кришкою”** /
+  **“Also with the lid closed”** sub-item brings up the standard macOS password
   dialog when you turn it on. Cancel it and the guard still works, just only
   while the lid is open.
 
@@ -53,9 +53,10 @@ what actually happened.
 
 It says it because the app checks rather than assumes. A password dialog that
 closed is no proof the setting took, so after every change `pmset -g` is read
-back, and the submenu only claims **“діє і з закритою кришкою”** when the system
-agrees. Cancel the prompt and it says so, with **“Спробувати ще раз”** next to
-it instead of leaving you to toggle the box off and on again.
+back, and the submenu only claims **“діє і з закритою кришкою”** / **“works with
+the lid closed too”** when the system agrees. Cancel the prompt and it says so,
+with **“Спробувати ще раз”** / **“Try again”** next to it instead of leaving
+you to toggle the box off and on again.
 
 Both halves of that used to need a second go, for two separate reasons, and
 both are fixed:
@@ -79,6 +80,24 @@ sleep, and the menu keeps a line at the top saying so until you deal with it,
 rather than quietly claiming all is normal. To check by hand:
 `pmset -g | grep SleepDisabled`.
 
+## Language
+
+The interface speaks Ukrainian and English. It picks one at launch from the
+macOS language list — Ukrainian if that is what the system is set to, English
+otherwise — and the **“Мова” / “Language”** item in the menu overrides it:
+*Як у системі / Same as the system*, *Українська*, *English*. The choice takes
+effect on the spot — no relaunch — and is remembered between runs.
+
+There are no `.lproj` bundles: the two vocabularies are plain Swift tables in
+`Sources/Strings.swift`, which is what lets the override redraw the menu
+immediately instead of waiting for a restart. The struct has no default values,
+so a string added to one language fails to build until the other has it too.
+Limit-window names are looked up by their API key at display time rather than
+stored, so switching language renames them without re-fetching anything.
+
+One thing stays as the server sends it: the names in **“Тиждень за джерелами”**
+/ **“Week by source”** come from the API, not from the app.
+
 ## Install
 
 ### The ready-made app
@@ -98,8 +117,8 @@ rather than quietly claiming all is normal. To check by hand:
    ```
 4. The Claude mark and a percentage appear next to the clock. There is no window
    and no Dock icon — everything lives in that menu.
-5. Optional: turn on **“Запускати при вході”** in the menu so it comes back after
-   a restart.
+5. Optional: turn on **“Запускати при вході”** / **“Launch at login”** so it
+   comes back after a restart.
 
 No separate sign-in is needed: the app reads the token Claude Code already keeps
 in your keychain, so it only works on a Mac where you use Claude Code.
@@ -135,7 +154,8 @@ xcrun notarytool store-credentials      # asks for a profile name, Apple ID,
                                         # team ID and an app-specific password
 ```
 
-Launch at login is a toggle inside the menu (“Запускати при вході”).
+Launch at login is a toggle inside the menu (“Запускати при вході” / “Launch at
+login”).
 
 ## How it works
 
@@ -168,7 +188,7 @@ renders of `UsagePanelView`.
 1. If launch at login is on, switch it off in the menu first — otherwise a dead
    login item stays behind (System Settings → General → Login Items can also
    remove it).
-2. Quit the app from its menu (**“Вийти”**). Quitting this way also restores
+2. Quit the app from its menu (**“Вийти”** / **“Quit”**). Quitting this way also restores
    normal sleep if the keep-awake switch was on.
 3. Drag `ClaudeUsage.app` from **Applications** to the Trash, or:
 
@@ -186,9 +206,9 @@ renders of `UsagePanelView`.
 Nothing else is left on the machine: the app stores no credentials of its own
 and never writes a copy of your token anywhere.
 
-One thing worth checking if the app was ever force-quit while “Також із закритою
-кришкою” was active — that mode changes a system setting, and a kill signal
-leaves no chance to undo it:
+One thing worth checking if the app was ever force-quit while the lid-closed
+mode was active — that mode changes a system setting, and a kill signal leaves
+no chance to undo it:
 
 ```sh
 pmset -g | grep SleepDisabled          # nothing printed means sleep is normal
@@ -199,6 +219,7 @@ sudo pmset -a disablesleep 0           # only if it shows 1
 
 | File | What it does |
 | --- | --- |
+| `Sources/Strings.swift` | the Ukrainian and English vocabularies, and the language choice |
 | `Sources/Credentials.swift` | reads and refreshes the OAuth token in the keychain |
 | `Sources/UsageAPI.swift` | requests the limits and parses the response |
 | `Sources/SleepGuard.swift` | keep-awake: power assertion + `pmset disablesleep`, with a timer |
